@@ -1,0 +1,54 @@
+ function [Ks, P] = Prop5_6_gpt(sysc, E, Pi, H)
+
+n_H = size(H,2);
+n_A = size(sysc.A,1);
+
+Ks = zeros(n_H, n_A);
+
+cvx_begin sdp quiet
+
+variable mi nonnegative
+variable Ps(n_A,n_A,n_H) semidefinite
+
+
+for i = 1:n_H
+    
+    [Ad,Bd,Cd,Dd] = ssdata(c2d(sysc, H(i), 'zoh'));
+    
+    Q = Cd'*Cd;
+    R = Dd'*Dd;
+    S = Cd'*Dd;
+    
+    K = -dlqr(Ad, Bd, Q, R, S);
+    Ks(i,:) = K;
+    
+    Acl = Ad + Bd*K;
+    Ccl = Cd + Dd*K;
+    
+    % Construção de Ppi
+    Ppi = 0;
+    for j = 1:n_H
+        Ppi = Ppi + Pi(j,i)*Ps(:,:,j);
+    end
+    
+    % ===== 5.59 =====
+    des5_59{i} = Acl'*Ppi*Acl - Ps(:,:,i) + Ccl'*Ccl;
+    
+    % ===== 5.60 =====
+    des5_60{i} = trace(E'*Ps(:,:,i)*E) - mi;
+    
+end
+
+minimize mi
+subject to
+    for i = 1:n_H
+        des5_59{i} <= 0;
+        des5_60{i} <= 0;
+    end
+
+cvx_end
+
+P = Ps;
+mi
+
+end
